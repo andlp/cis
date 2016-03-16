@@ -20,6 +20,13 @@
       - talk-server
       - xinetd
     some_list_of_removable_media:
+    chkconfig_list_disable:
+      - echo-stream
+      - echo-dgram
+      - daytime-stream
+      - daytime-dgram
+      - chargen-stream
+      - chargen-dgram
       
    
     StickBit_cmd: df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type d \( -perm -0002 -a ! -perm -1000 \) 2>/dev/null | xargs chmod a+t
@@ -102,7 +109,6 @@
   - name: Check Latest OS Release
     command: uname -r
     register: command_result
-#    debug: msg={{ command_result.results }}
     failed_when: "'3.10.0-327.10.1.el7.x86_64' not in command_result.stdout" 
     
 #  - debug: msg="result is {{ command_result.stdout }}"
@@ -114,7 +120,49 @@
     yum: name={{ item }} state=absent
     with_items: "{{ bad_packages }}"
 
-# PlaceHolder for chkconfig chargen-dgram off    
-        
+# Need a better test for these xinitd settings.  sysctrl gets in the way here.  
+# chargen-dgram is a child of xinetd.  It will be gone if xinetd is gone, may not need this...
+# Maybe use shell: and a small if loop to fix this
+
+# Finish putting this in a loop     
+#  - name: Check xinit.d children
+#    command: chkconfig --list {{ item }}
+#    register: command_result
+#    failed_when: "'service chargen-dgram: No such file or directory' not in command_result.stderr"
+
+
+  - name: Check chargen-dgram is off
+    command: chkconfig --list chargen-dgram
+    register: command_result
+    failed_when: "'service chargen-dgram: No such file or directory' not in command_result.stderr"
     
-         
+  - name: Check chargen-stream is off
+    command: chkconfig --list chargen-stream
+    register: command_result
+    failed_when: "'service chargen-stream: No such file or directory' not in command_result.stderr"
+    
+  - name: Check daytime-dgram is off
+    command: chkconfig --list daytime-dgram
+    register: command_result
+    failed_when: "'service daytime-dgram: No such file or directory' not in command_result.stderr"
+      
+  - name: Check echo-dgram is off
+    command: chkconfig --list echo-dgram
+    register: command_result
+    failed_when: "'service echo-dgram: No such file or directory' not in command_result.stderr"
+    
+  - name: Check echo-dgram is off
+    command: chkconfig --list echo-dgram
+    register: command_result
+    failed_when: "'service echo-dgram: No such file or directory' not in command_result.stderr"
+    
+  - name: Check tcpmux-server is off
+    command: chkconfig --list tcpmux-server
+    register: command_result
+    failed_when: "'service tcpmux-server: No such file or directory' not in command_result.stderr"
+ # End of CHKCONFIG Block.  Refactor this...
+ 
+  - name: Set /etc/sysconfig/init Add Line umask 027
+    lineinfile: dest=/etc/sysconfig/init line="#Added by Ansible CIS Playbook" state=present 
+    lineinfile: dest=/etc/sysconfig/init line="umask 027" state=present
+                
