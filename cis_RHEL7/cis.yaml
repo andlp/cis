@@ -1,0 +1,120 @@
+---
+- hosts: slaves 
+  vars:
+    logical_volumes:
+      - { name: 'tmp', mount: '/tmp', size: '1M', fs: 'ext4', options: 'loop,rw,nodev,nosuid,noexec' }
+      - { name: 'log', mount: '/var/log', size: '1M', fs: 'ext4', options: 'loop,rw,nosuid,noexec' }
+      - { name: 'audit', mount: '/var/log/audit', size: '1M', fs: 'ext4', options: 'loop,rw,nodev,nosuid,noexec' }
+      - { name: 'home', mount: '/home', size: '1M', fs: 'ext4', options: 'nodev' }
+      - { name: 'shm', mount: '/dev/shm', size: '1M', fs: 'ext4', options: 'nodev,nosuid,noexec' }
+    bad_packages:
+      - telnet 
+      - telnet-server
+      - rsh
+      - rsh-server
+      - ypbind 
+      - ypserv 
+      - tftp 
+      - tftp-server
+      - talk
+      - talk-server
+      - xinetd
+    some_list_of_removable_media:
+      
+   
+    StickBit_cmd: df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type d \( -perm -0002 -a ! -perm -1000 \) 2>/dev/null | xargs chmod a+t
+
+  tasks:
+  - name: install vlm preq
+    yum: name={{ item }} state=latest
+    with_items:
+        - lvm2
+        - device-mapper
+        - mdadm
+        - xfsprogs
+
+  - name: yum update all
+    yum: name=* state=latest
+    
+    #This creates the PV and takes the drives as requirement
+  - name: create lvg
+    lvg: vg=vg.core pvs=/dev/sdb,/dev/sdc pesize=1 state=present
+  - name: create lvgroups
+    command: sudo lvcreate --name {{ item.name }} --size {{ item.size }} vg.core
+    args: 
+      creates: /dev/vg.core/{{ item.name }}
+    with_items: "{{ logical_volumes }}"
+#  - debug: item.name  item.size  
+
+  - name: mkfs
+    filesystem: fstype={{ item.fs }} dev=/dev/vg.core/{{ item.name }}
+    with_items: "{{ logical_volumes }}"
+    
+  - name: mount drives
+    mount: name={{ item.mount }} src=/dev/vg.core/{{ item.name }} fstype={{ item.fs }} opts={{ item.options }} state=mounted
+    with_items: "{{ logical_volumes }}" 
+
+  - name: mount /var/tmp 
+    mount: name=/var/tmp src=/tmp fstype=ext4 opts=rw,noexec,nosuid,nodev,bind state=mounted
+    
+  - name: set DirStickyBit - need a better remediation for this
+    shell: "{{ StickBit_cmd }}"
+
+#  - name: manage removable media partitions
+#     mount: src={{ item }} state=unmounted
+#     with_items: "{{ some_list_of_removable_media }}
+
+# find a better way to test this
+#  - name: Check RHN 
+#    command: yum check-update
+#    register: command_result
+#    failed_when: "'mirror.cc.columbia.edu' not in command_result.stdout"
+
+#  - name: Check RHN
+#    shell: 'yum check-update
+#    register: checkUpdate
+#  - assert: 
+#    that:
+#      - "'mirror.cc.columbia.edu' in checkUpdate.stdout"
+    
+  - name: check RedHat GPG Key
+    command: rpm -q --queryformat "%{SUMMARY}\n" gpg-pubkey
+    register: command_result
+    failed_when: "'gpg(CentOS-7 Key (CentOS 7 Official Signing Key) <security@centos.org>)' not in command_result.stdout"
+#    failed_when: "'dogs' not in command_result.stdout" 
+       
+  - name: Activate gpgcheck globably
+    lineinfile: dest=/etc/yum.conf line="gpgcheck=1" state=present 
+   
+  - name: grub.cfg owner and permissions
+    file: path=/boot/grub2/grub.cfg owner=root group=root mode="og-rwx"
+    
+  - name: Set BootLoader Passwd
+    lineinfile: dest=/boot/grub2/grub.cfg regexp="^superusers=" line="SUPERUSERS SHOULD BE HERE"
+   
+  - name: Restrict Core Dumps
+    lineinfile: dest=/etc/security/limits.conf line="* hard core 0" state=present
+    lineinfile: dest=/etc/security/limits.conf line="fs.suid_dumpable = 0" state=present
+    
+  - name: Randomized Virtual Memory Region Placement
+    lineinfile: dest=/etc/sysctl.conf line="kernel.randomize_va_space = 2" state=present
+    
+  - name: Check Latest OS Release
+    command: uname -r
+    register: command_result
+#    debug: msg={{ command_result.results }}
+    failed_when: "'3.10.0-327.10.1.el7.x86_64' not in command_result.stdout" 
+    
+#  - debug: msg="result is {{ command_result.stdout }}"
+#    failed_when: '3.10.0-327.10.1.el7.x86_64" not in stdout' 
+#    when: "'command_result.stdout'  
+
+# Remove packages telnet telnet-server rsh rsh-server ypbind ypserv tftp tftp-server
+  - name: remove bad packages
+    yum: name={{ item }} state=absent
+    with_items: "{{ bad_packages }}"
+
+# PlaceHolder for chkconfig chargen-dgram off    
+        
+    
+         
