@@ -19,6 +19,7 @@
       - talk
       - talk-server
       - xinetd
+
     some_list_of_removable_media:
     chkconfig_list_disable:
       - echo-stream
@@ -39,6 +40,7 @@
         - device-mapper
         - mdadm
         - xfsprogs
+        - ntp
 
   - name: yum update all
     yum: name=* state=latest
@@ -115,7 +117,7 @@
 #    failed_when: '3.10.0-327.10.1.el7.x86_64" not in stdout' 
 #    when: "'command_result.stdout'  
 
-# Remove packages telnet telnet-server rsh rsh-server ypbind ypserv tftp tftp-server
+# Remove packages telnet telnet-server rsh rsh-server ypbind ypserv tftp tftp-server - This might need more to the listing
   - name: remove bad packages
     yum: name={{ item }} state=absent
     with_items: "{{ bad_packages }}"
@@ -165,4 +167,90 @@
   - name: Set /etc/sysconfig/init Add Line umask 027
     lineinfile: dest=/etc/sysconfig/init line="#Added by Ansible CIS Playbook" state=present 
     lineinfile: dest=/etc/sysconfig/init line="umask 027" state=present
-                
+    
+  #3.2Remove xWindows RPMs todo: checks for unlink default.target 
+  - name: Remove X Windows
+    yum: name=xorg-x11-server-common state=absent
+    
+  #3.3 Disable Avahi Server
+  - name: disable Avahi
+    service: name=avahi-daemon state=stopped enabled=no
+    
+  #3.4 Disable CUPS
+  - name: disable CUPS
+    service: name=cups state=stopped enabled=no
+    
+  #3.5 Remove DHCP Server
+  - name: remove DHCP
+    yum: name=dhcp state=absent
+    
+  #3.6 Configure NTP   
+  - name: configure NTP
+    lineinfile: dest=/etc/ntp.conf line="restrict default kod nomodify notrap nopeer noquery" regexp="^restrict default"
+    lineinfile: dest=/etc/ntp.conf line="restrict -6 default kod nomodify notrap nopeer noquery" regexp="^restrict -6 default" 
+    
+  #3.6b Set NTP Server - Need to know what the NTP servers are Perhaps use a template for ntp.conf
+  #- name: Set NTP server
+  #  lineinfile: dest-/etc/ntp.conf line="server *set here the ntp servers* state=present regexp=somestuffhere  
+  
+  #3.7 Remove LDAP Servers
+  - name: remove LDAP Servers
+    yum: name=openldap-servers state=absent       
+
+  #3.7b Remove LDAP Clients
+  - name: remove LDAP Clients
+    yum: name=openldap-clients state=absent  
+   
+  #3.8 Disable NFSlock
+  - name: disable nfslock
+    service: name=nfslock state=stopped enabled=no  
+  
+  #3.8b Disable RPCgssd
+  - name: disable rpcgssd
+    service: name=rpcgssd state=stopped enabled=no 
+
+  #3.8c Disable RPCgssd
+  - name: disable rpcbind
+    service: name=rpcbind state=stopped enabled=no
+    
+  #3.8b Disable RPCidmqapd
+  - name: disable rpcidmapd
+    service: name=rpcidmapd state=stopped enabled=no
+    
+  #3.8b Disable RPCsvcgssd
+  - name: disable rpcsvcgssd
+    service: name=rpcsvcgssd state=stopped enabled=no 
+    
+  #3.9 Remove DNS server
+  - name: disable DNS server
+    yum: name=bind state=absent
+    
+  #3.10 Remove FTP server
+  - name: disable FTP Server          
+    yum: name=vsftpd state=absent
+    
+  #3.11 Remove HTTPd server
+  - name: disable HTTPd Server          
+    yum: name=httpd state=absent
+    
+  #3.12 Remove Dovecot (IMAP and POP3 services)
+  - name: remove Dovecot
+    yum: name=dovecot state=absent
+    
+  #3.13 Remove Samba
+  - name: remove samba
+    yum: name=samba state=absent
+    
+  #3.14 Remove HTTP Proxy Server
+  - name: remove squid
+    yum: name=squid state=absent
+   
+  #3.15 Remove SNMP Server
+  - name: remove net-snmp
+    yum: name=net-snmp state=absent
+    
+  #3.16 Config Main transfer Agent for Local-only mode
+  - name: config mail xfer to local
+    lineinfile: dest=/etc/postfix/main.cf line="inet_interfaces = localhost" regexp="^inet_interface"
+    
+    
