@@ -1,5 +1,5 @@
 ---
-- hosts: slaves 
+- hosts: all 
   vars:
     logical_volumes:
       - { name: 'tmp', mount: '/tmp', size: '1M', fs: 'ext4', options: 'loop,rw,nodev,nosuid,noexec' }
